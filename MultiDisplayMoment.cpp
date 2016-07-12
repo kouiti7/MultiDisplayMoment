@@ -15,11 +15,11 @@ static RECT			allRect;
 static HMONITOR		lastMon = NULL;
 static HHOOK		llmHook = NULL;
 static map< HMONITOR, RECT > monitors;
-static POINT		offsetPt;	// monitor rect over value
+//static POINT		offsetPt;	// monitor rect over value
+static double		offsetX, offsetY;
 static int			margin = 300;
+static double		accadj = 1.0;
 static CTaskTrayIcon ticon;
-
-#define PtAdd( a, b ) a.x += b.x; a.y += b.y;
 
 void
 PtClipRect( RECT &rc, POINT &pt )
@@ -38,26 +38,27 @@ LowLevelMouseProc( int nCode, WPARAM wParam, LPARAM lParam )
 	RECT &rc = monitors[ lastMon ];
 
 	POINT virtualPt = mll.pt;
-	PtAdd( virtualPt, offsetPt );
+	virtualPt.x += (int)offsetX;
+	virtualPt.y += (int)offsetY;
 	PtClipRect( allRect, virtualPt );
 	if( PtInRect( &rc, virtualPt ) )
 	{
-		memset( &offsetPt, 0, sizeof( offsetPt ) );
+		offsetX = offsetY = 0;
 		return ::CallNextHookEx( llmHook, nCode, wParam, lParam );
 	}
 
 	// rect over calc
 #if 0
 	if( virtualPt.x < rc.left )
-		offsetPt.x += mll.pt.x - rc.left;
+		offsetX += mll.pt.x - rc.left;
 	else if( virtualPt.x > rc.right - 1 )
-		offsetPt.x += mll.pt.x - ( rc.right - 1 );
+		offsetX += mll.pt.x - ( rc.right - 1 );
 
 	if( virtualPt.y < rc.top )
-		offsetPt.y += mll.pt.y - rc.top;
+		offsetY += mll.pt.y - rc.top;
 	else if( virtualPt.y > rc.bottom - 1 )
-		offsetPt.y += mll.pt.y - ( rc.bottom - 1 );
-#else
+		offsetY += mll.pt.y - ( rc.bottom - 1 );
+#elif 0
 
 	int n;
 	
@@ -66,14 +67,14 @@ LowLevelMouseProc( int nCode, WPARAM wParam, LPARAM lParam )
 		n = mll.pt.x - rc.left;
 		if( n < -1 )
 			n = -(int)sqrt( -n );
-		offsetPt.x += n;
+		offsetX += n;
 	}
 	else if( virtualPt.x > rc.right - 1 )
 	{
 		n = mll.pt.x - ( rc.right - 1 );
 		if( n > 1 )
 			n = (int)sqrt( n );
-		offsetPt.x += n;
+		offsetX += n;
 	}
 
 	if( virtualPt.y < rc.top )
@@ -81,22 +82,41 @@ LowLevelMouseProc( int nCode, WPARAM wParam, LPARAM lParam )
 		n = mll.pt.y - rc.top;
 		if( n < -1 )
 			n = -(int)sqrt( -n );
-		offsetPt.y += n;
+		offsetY += n;
 	}
 	else if( virtualPt.y > rc.bottom - 1 )
 	{
 		n = mll.pt.y - ( rc.bottom - 1 );
 		if( n < -1 )
 			n = -(int)sqrt( -n );
-		offsetPt.y += n;
+		offsetY += n;
 	}
+#else
+
+#define adj( a, b ) __max( 0, pow( (a), (b) ) )
+//#define adj( pos, acc ) __max( 0, log(acc) / log( __max(0,pos) * 2.0 ) )
+
+	if( mll.pt.x <= rc.left )
+		offsetX -= adj( rc.left - mll.pt.x, accadj );
+	else if( mll.pt.x >= rc.right - 1 )
+		offsetX += adj( mll.pt.x + rc.right + 1, accadj );
+	else
+		offsetX = 0;
+
+	if( mll.pt.y <= rc.top )
+		offsetY -= adj( rc.top - mll.pt.y, accadj );
+	else if( mll.pt.y >= rc.bottom - 1 )
+		offsetY += adj( mll.pt.y + rc.bottom + 1, accadj );
+	else
+		offsetY = 0;
+
 #endif
 
 	// threshold over
-	if( abs( offsetPt.x ) > margin  ||  abs( offsetPt.y ) > margin )
+	if( abs( offsetX ) > margin  ||  abs( offsetY ) > margin )
 	{
 		lastMon = MonitorFromPoint( mll.pt, MONITOR_DEFAULTTONEAREST );
-		memset( &offsetPt, 0, sizeof( offsetPt ) );
+		offsetX = offsetY = 0;
 		return ::CallNextHookEx( llmHook, nCode, wParam, lParam );
 	}
 
@@ -124,6 +144,10 @@ LoadIni()
 	strcat_s( inipath, "setting.ini" );
 
 	margin = GetPrivateProfileInt( "global", "margin", 300, inipath );
+
+	char buf[256];
+	GetPrivateProfileString( "global", "accelerated_adjustment", "1.0", buf, 256, inipath );
+	accadj = atof( buf );
 }
 
 void
