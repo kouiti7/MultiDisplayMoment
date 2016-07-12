@@ -47,6 +47,7 @@ LowLevelMouseProc( int nCode, WPARAM wParam, LPARAM lParam )
 	}
 
 	// rect over calc
+#if 0
 	if( virtualPt.x < rc.left )
 		offsetPt.x += mll.pt.x - rc.left;
 	else if( virtualPt.x > rc.right - 1 )
@@ -56,6 +57,40 @@ LowLevelMouseProc( int nCode, WPARAM wParam, LPARAM lParam )
 		offsetPt.y += mll.pt.y - rc.top;
 	else if( virtualPt.y > rc.bottom - 1 )
 		offsetPt.y += mll.pt.y - ( rc.bottom - 1 );
+#else
+
+	int n;
+	
+	if( virtualPt.x < rc.left )
+	{
+		n = mll.pt.x - rc.left;
+		if( n < -1 )
+			n = -(int)sqrt( -n );
+		offsetPt.x += n;
+	}
+	else if( virtualPt.x > rc.right - 1 )
+	{
+		n = mll.pt.x - ( rc.right - 1 );
+		if( n > 1 )
+			n = (int)sqrt( n );
+		offsetPt.x += n;
+	}
+
+	if( virtualPt.y < rc.top )
+	{
+		n = mll.pt.y - rc.top;
+		if( n < -1 )
+			n = -(int)sqrt( -n );
+		offsetPt.y += n;
+	}
+	else if( virtualPt.y > rc.bottom - 1 )
+	{
+		n = mll.pt.y - ( rc.bottom - 1 );
+		if( n < -1 )
+			n = -(int)sqrt( -n );
+		offsetPt.y += n;
+	}
+#endif
 
 	// threshold over
 	if( abs( offsetPt.x ) > margin  ||  abs( offsetPt.y ) > margin )
